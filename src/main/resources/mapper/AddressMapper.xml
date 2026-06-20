@@ -25,5 +25,8 @@
             </if>
         </set>
         where addressId = #{addressId}
+        <if test="userId != null">
+            and userId = #{userId}
+        </if>
     </update>
 </mapper>

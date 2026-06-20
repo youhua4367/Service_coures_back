@@ -4,6 +4,7 @@ import com.example.elm_m.Constant.MessageConstant;
 import com.example.elm_m.Context.ThreadContext;
 import com.example.elm_m.Entity.Address;
 import com.example.elm_m.Entity.AddressResponse;
+import com.example.elm_m.Exception.AddressBusinessException;
 import com.example.elm_m.Exception.ApiException;
 import com.example.elm_m.Mapper.AddressMapper;
 import com.example.elm_m.Properties.MapProperties;
@@ -46,9 +47,13 @@ public class AddressServiceImpl implements AddressService {
      * @param address 地址实体
      */
     @Override
+    @Transactional
     public void save(Address address) {
-        address.setUserId(ThreadContext.getCurrentId());
-        address.setIsDefault(1);
+        String userId = ThreadContext.getCurrentId();
+        List<Address> addresses = addressMapper.getByUserId(userId);
+
+        address.setUserId(userId);
+        address.setIsDefault(addresses.isEmpty() ? 1 : 0);
         addressMapper.insert(address);
     }
 
@@ -68,6 +73,12 @@ public class AddressServiceImpl implements AddressService {
      */
     @Override
     public void update(Address address) {
+        String userId = ThreadContext.getCurrentId();
+        requireCurrentUserAddress(address.getAddressId(), userId);
+
+        address.setUserId(userId);
+        // 普通编辑不能改变默认地址状态，默认地址只能通过 setDefault 修改。
+        address.setIsDefault(null);
         addressMapper.update(address);
     }
 
@@ -78,16 +89,22 @@ public class AddressServiceImpl implements AddressService {
     @Override
     @Transactional
     public void setDefault(Address address) {
+        String userId = ThreadContext.getCurrentId();
+        requireCurrentUserAddress(address.getAddressId(), userId);
+
         // 将用户所有地址修改为非默认地址 0
         Address address1 = new Address();
-        address1.setUserId(ThreadContext.getCurrentId());
+        address1.setUserId(userId);
         address1.setIsDefault(0);
 
         addressMapper.updateIsDefaultByUserId(address1);
 
-        // 将 address 的地址设置为 1
-        address.setIsDefault(1);
-        addressMapper.update(address);
+        // 只更新目标地址的默认状态，避免覆盖前端未提交的其他字段。
+        Address defaultAddress = new Address();
+        defaultAddress.setAddressId(address.getAddressId());
+        defaultAddress.setUserId(userId);
+        defaultAddress.setIsDefault(1);
+        addressMapper.update(defaultAddress);
     }
 
     /**
@@ -95,8 +112,33 @@ public class AddressServiceImpl implements AddressService {
      * @param id 地址id
      */
     @Override
+    @Transactional
     public void delete(Long id) {
-        addressMapper.deleteById(id);
+        String userId = ThreadContext.getCurrentId();
+        requireCurrentUserAddress(id, userId);
+
+        addressMapper.deleteByIdAndUserId(id, userId);
+
+        List<Address> remainingAddresses = addressMapper.getByUserId(userId);
+        if (remainingAddresses.isEmpty()) {
+            return;
+        }
+
+        Address nextDefault = remainingAddresses.stream()
+                .filter(item -> Integer.valueOf(1).equals(item.getIsDefault()))
+                .findFirst()
+                .orElse(remainingAddresses.getFirst());
+
+        Address resetDefault = new Address();
+        resetDefault.setUserId(userId);
+        resetDefault.setIsDefault(0);
+        addressMapper.updateIsDefaultByUserId(resetDefault);
+
+        Address defaultAddress = new Address();
+        defaultAddress.setAddressId(nextDefault.getAddressId());
+        defaultAddress.setUserId(userId);
+        defaultAddress.setIsDefault(1);
+        addressMapper.update(defaultAddress);
     }
 
     /**
@@ -140,6 +182,18 @@ public class AddressServiceImpl implements AddressService {
                     .build();
         }
         return null;
+    }
+
+    private Address requireCurrentUserAddress(Long addressId, String userId) {
+        if (addressId == null) {
+            throw new AddressBusinessException(MessageConstant.ADDRESS_NOT_FOUND);
+        }
+
+        Address address = addressMapper.getByAddressIdAndUserId(addressId, userId);
+        if (address == null) {
+            throw new AddressBusinessException(MessageConstant.ADDRESS_NOT_FOUND);
+        }
+        return address;
     }
 
 

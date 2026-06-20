@@ -1,8 +1,6 @@
 package com.example.elm_m.Controller.User;
 
 import com.example.elm_m.Entity.Address;
-import com.example.elm_m.Entity.AddressResponse;
-import com.example.elm_m.Entity.Cart;
 import com.example.elm_m.Result.Result;
 import com.example.elm_m.Service.AddressService;
 import com.example.elm_m.VO.AddressVO;
@@ -66,7 +64,7 @@ public class AddressController {
      */
     @PutMapping()
     @Operation(summary = "根据 id 修改地址")
-    public Result<String> update(Address address) {
+    public Result<String> update(@RequestBody Address address) {
         log.info("修改地址:{}", address);
         addressService.update(address);
 
@@ -80,7 +78,7 @@ public class AddressController {
      */
     @PutMapping("/default")
     @Operation(summary = "设置默认地址")
-    public Result<String> setDefault(Address address) {
+    public Result<String> setDefault(@RequestBody Address address) {
         log.info("设置默认地址：:{}", address);
         addressService.setDefault(address);
         return Result.success("修改默认地址成功");

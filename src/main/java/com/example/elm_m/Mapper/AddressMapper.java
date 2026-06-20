@@ -20,13 +20,18 @@ public interface AddressMapper {
     @Select("select * from address where addressId = #{id}")
     Address getByAddressId(Long id);
 
+    @Select("select * from address where addressId = #{addressId} and userId = #{userId}")
+    Address getByAddressIdAndUserId(@Param("addressId") Long addressId,
+                                    @Param("userId") String userId);
+
     void update(Address address);
 
     @Update("update address set isDefault = #{isDefault} where userId = #{userId}")
     void updateIsDefaultByUserId(Address address1);
 
-    @Delete("delete from address where addressId = #{id}")
-    void deleteById(Long id);
+    @Delete("delete from address where addressId = #{addressId} and userId = #{userId}")
+    void deleteByIdAndUserId(@Param("addressId") Long addressId,
+                             @Param("userId") String userId);
 
     @Select("select * from address where userId = #{userId} and isDefault = #{isDefault}")
     Address getDefault(Address address);

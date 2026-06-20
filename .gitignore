@@ -21,7 +21,9 @@ target/
 *.class
 *Test.java
 **/test/
-*.yml
+application-local.yml
+.env
+.env.local
 
 ### NetBeans ###
 /nbproject/private/
