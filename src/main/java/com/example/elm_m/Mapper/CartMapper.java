@@ -33,6 +33,13 @@ public interface CartMapper {
     void deleteById(String userId);
 
     /**
+     * 清空当前用户在指定商家的购物车
+     */
+    @Delete("delete from cart where userId = #{userId} and businessId = #{businessId}")
+    void deleteByUserIdAndBusinessId(@Param("userId") String userId,
+                                     @Param("businessId") Long businessId);
+
+    /**
      * 根据 id 删除项
      * @param cartId
      */

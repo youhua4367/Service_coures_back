@@ -10,6 +10,7 @@ import com.example.elm_m.Entity.Orders;
 import com.example.elm_m.Exception.AddressBusinessException;
 import com.example.elm_m.Exception.CartBusinessException;
 import com.example.elm_m.Exception.OrderBusinessException;
+import com.example.elm_m.Exception.ParamException;
 import com.example.elm_m.Mapper.AddressMapper;
 import com.example.elm_m.Mapper.CartMapper;
 import com.example.elm_m.Mapper.OrderDetailMapper;
@@ -19,6 +20,7 @@ import com.example.elm_m.VO.OrderSubmitVO;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -41,19 +43,27 @@ public class OrderServiceImpl implements OrderService {
      * 提交订单
      * @param orderSubmitDTO 订单提交对象
      * @return 订单响应对象
-     */
+    */
     @Override
+    @Transactional
     public OrderSubmitVO submitOrder(OrderSubmitDTO orderSubmitDTO) {
 
-        // 1.业务异常：地址簿为空，商品为空
-        Address address = addressMapper.getByAddressId(orderSubmitDTO.getAddressId());
+        if (orderSubmitDTO == null || orderSubmitDTO.getBusinessId() == null) {
+            throw new ParamException(MessageConstant.PARAM_ERROR);
+        }
+
+        String userId = ThreadContext.getCurrentId();
+
+        // 1.业务异常：地址不存在、地址不属于当前用户、当前商家购物车为空
+        Address address = addressMapper.getByAddressIdAndUserId(
+                orderSubmitDTO.getAddressId(), userId);
         if (address == null) {
             throw new AddressBusinessException(MessageConstant.ADDRESS_IS_NULL);
         }
 
-        String userId = ThreadContext.getCurrentId();
         Cart cart = new Cart();
         cart.setUserId(userId);
+        cart.setBusinessId(orderSubmitDTO.getBusinessId());
         List<Cart> carts = cartMapper.list(cart);
         if (carts.isEmpty()) {
             throw new CartBusinessException(MessageConstant.CART_IS_NULL);
@@ -82,8 +92,8 @@ public class OrderServiceImpl implements OrderService {
         }
         orderDetailMapper.insertBatch(orderDetailList);
 
-        // 4.清空购物车
-        cartMapper.deleteById(userId);
+        // 4.只清空本次下单商家的购物车，保留其他商家的商品
+        cartMapper.deleteByUserIdAndBusinessId(userId, orderSubmitDTO.getBusinessId());
 
         // 5.封装 VO 返回结果
         return OrderSubmitVO.builder()
